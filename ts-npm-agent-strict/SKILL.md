@@ -12,7 +12,7 @@ Four premises drive every choice below.
 - **Every mistake a flag can catch, a flag should catch.** An agent emits plausible-wrong code faster than anyone reviews it. Static checks are the only reviewer that runs on every edit.
 - **The program must be legible one file at a time.** Inferred export signatures, ambient globals, and `tsc`-only path aliases are invisible to grep, therefore invisible to an agent that navigates by search. Force them written down.
 - **Checker output is a machine channel.** Truncation, ANSI escapes, and volume the agent learns to skim are all corruption in that channel.
-- **Prefer a checked element over a comment.** A type, a `satisfies`, an `assertNever`, or a `@ts-expect-error` carries the same claim and fails the build when it stops being true. See [Comments to checked artifacts](#comments-to-checked-artifacts).
+- **Prefer a checked element over a comment.** A type, a `satisfies`, an `assertNever`, or a `@ts-expect-error` carries the same claim and fails the build when it stops being true.
 
 Size and shape follow from those: files run as long as their subject, unions as wide as the domain, generics as deep as the type demands, lines to 120 columns. The enforcement is an absence — `max-lines`, `max-depth`, `max-params`, and the complexity rules live in the `style` and `pedantic` categories that `.oxlintrc.json` turns off.
 
@@ -24,7 +24,7 @@ Five answers pick the route. Ask for whatever is not already evident; do not gue
 
 1. **Who emits the JS that ships** — `tsc`, a bundler, or a runtime that strips types?
 2. **Who resolves that output** — Node, a browser via bundler, or another package's consumers? Independent of (1), and the usual source of broken configs.
-3. **Lowest supported runtime** — the actual Node or browser floor. This fixes `target` and `lib`.
+3. **Lowest supported runtime** — current or evergreen keeps `target` and `lib` at `esnext`; an older floor pins them down. See the axis note under the route table.
 4. **JSX framework**, if any.
 5. **Test runner**, and where test files live.
 
@@ -40,7 +40,7 @@ npm add -D typescript@^6 oxlint oxlint-tsgolint prettier
 
 **Write the config as if it were already TypeScript 7 anyway.** Every option removed in 7 is already an error in 6 — `baseUrl` (TS5101), `moduleResolution: node` (TS5107), `outFile`, `downlevelIteration`, `target: es5`, `module: amd`/`umd`, `esModuleInterop: false`, `allowSyntheticDefaultImports: false` — silenceable only with `ignoreDeprecations`. Never silence them. `oxlint-tsgolint` runs the type-aware lint rules on its own bundled TypeScript 7 engine and never loads your `typescript` package, so a config that still uses removed options type-checks but cannot be type-aware linted. Keeping the config 7-clean is what points both tools at one program, and makes a later compiler bump config-neutral.
 
-**Write out any default whose absence would read as deliberate loosening.** Current members: `strict` and `module` (already true and `esnext` in 6), `allowJs`, `useDefineForClassFields`, and `target` — which floats with the compiler version, so a `typescript` bump silently changes both emit and the ambient lib set. `rootDir` is not a default at all: an emitting config with sources under `src/` errors TS5011 until you write it.
+**Write out any default whose absence would read as deliberate loosening.** Current members: `strict` and `module` (already true and `esnext` in 6), `allowJs`, `useDefineForClassFields`, and `target` — whose implicit default floats exactly like an explicit `esnext` does, but only the written form reads as chosen rather than forgotten. `rootDir` is not a default at all: an emitting config with sources under `src/` errors TS5011 until you write it.
 
 `--checkers`, `--builders`, and `--singleThreaded` belong to the TypeScript 7 native compiler; passing them to `tsc` 6 fails.
 
@@ -61,7 +61,6 @@ Identical in every route. Copy it verbatim, then add the route block.
 {
   "compilerOptions": {
     "skipLibCheck": true,
-    "incremental": true,
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
@@ -110,7 +109,7 @@ Who emits the JS that ships?
 | Library emitted by a bundler | `preserve` | `bundler` |
 | CommonJS-authored source | `commonjs` | `bundler` |
 
-`target` and `lib` are a separate axis: the lowest runtime you support — your own floor for an app, your consumer's for a library. Node 18 → `es2022`, Node 20 → `es2023`, Node 22 or an evergreen browser → `es2024`, plus `"dom"` in `lib` for browser code. `lib` is what stands between a green build and a missing built-in at runtime, so it is a floor to raise deliberately.
+`target` and `lib` are a separate axis, and the policy is **`esnext` for both, written out**: emit the syntax you wrote and check against the full current standard library — downleveling is the bundler's or the runtime's job, not `tsc`'s. Add `"dom"` to `lib` for browser code. The one stated-reason deviation is a floor below current — an app stuck on an old Node, or a library whose oldest supported consumer lags: pin both to that floor (Node 18 → `es2022`, Node 20 → `es2023`, Node 22 → `es2024`), because a pinned `lib` is then what stands between a green build and a missing built-in at runtime. `esnext` trades that guard away on the premise that the floor is current.
 
 §2 and §3 need `"type": "module"` in `package.json`. Without it `nodenext` reads `.ts` sources as CommonJS and the strict core turns every ESM import into TS1287/TS1295.
 
@@ -123,10 +122,10 @@ Who emits the JS that ships?
 ```json
 {
   "compilerOptions": {
-    "target": "es2024",
+    "target": "esnext",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "lib": ["es2024", "dom"],
+    "lib": ["esnext", "dom"],
     "jsx": "react-jsx",
     "types": [],
     "rootDir": "./src",
@@ -142,15 +141,15 @@ Drop `"dom"` for non-browser code. On `jsx` the framework's own docs win: React 
 
 ### §2 Node.js ESM application
 
-Pin `@types/node` to the floor's major (`npm add -D @types/node@22`): `lib` constrains ECMAScript built-ins only, so a newer `@types/node` happily type-checks Node APIs the floor lacks.
+Match `@types/node` to the Node major you actually run (`npm add -D @types/node@24`): with `lib` at `esnext`, `@types/node` is the one thing tying the typed API surface to a real runtime, and a newer one happily type-checks Node APIs yours lacks.
 
 ```json
 {
   "compilerOptions": {
-    "target": "es2024",
+    "target": "esnext",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["es2024"],
+    "lib": ["esnext"],
     "types": ["node"],
     "rootDir": "./src",
     "outDir": "./dist",
@@ -169,10 +168,10 @@ Pin `@types/node` to the floor's major (`npm add -D @types/node@22`): `lib` cons
 ```json
 {
   "compilerOptions": {
-    "target": "es2022",
+    "target": "esnext",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["es2022"],
+    "lib": ["esnext"],
     "types": [],
     "rootDir": "./src",
     "outDir": "./dist",
@@ -188,7 +187,7 @@ Pin `@types/node` to the floor's major (`npm add -D @types/node@22`): `lib` cons
 }
 ```
 
-`isolatedDeclarations` lives in the main config here, since a library emits declarations anyway. In `package.json` `exports`, put `types` first in each conditional block, then verify it mechanically with `attw --pack .` and `publint --strict` rather than by eye — a `prepack` script makes npm run both on every `pack` and `publish`.
+`esnext` holds only while your oldest supported consumer tracks current runtimes; a lagging consumer floor is the axis deviation — pin `target` and `lib` to it. `isolatedDeclarations` lives in the main config here, since a library emits declarations anyway. In `package.json` `exports`, put `types` first in each conditional block, then verify it mechanically with `attw --pack .` and `publint --strict` rather than by eye — a `prepack` script makes npm run both on every `pack` and `publish`.
 
 ### §4 Monorepo with project references
 
@@ -308,51 +307,34 @@ Both CJS-authored routes also need a CommonJS package boundary — a `package.js
 
 ## oxlint, the only linter
 
-An `any` crossing a boundary and a promise nobody awaited both type-check cleanly, and both are characteristic agent mistakes. Type-aware oxlint is what catches them.
+The linter's consumer is the agent: error-level findings are real bugs, style is the formatter's problem, and the output is machine-parseable.
 
 `.oxlintrc.json`:
 
 ```json
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "typescript", "oxc", "unicorn", "import", "promise", "node"],
+  "plugins": ["typescript", "import", "promise", "node"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn",
     "perf": "warn",
-    "pedantic": "off",
     "style": "off",
-    "restriction": "off",
-    "nursery": "off"
+    "pedantic": "off"
   },
   "rules": {
-    "typescript/no-misused-promises": "error",
-    "typescript/switch-exhaustiveness-check": "error",
-    "typescript/no-unsafe-assignment": "error",
-    "typescript/no-unsafe-argument": "error",
-    "typescript/no-unsafe-call": "error",
-    "typescript/no-unsafe-member-access": "error",
-    "typescript/no-unsafe-return": "error",
-    "typescript/no-unsafe-type-assertion": "error",
-    "typescript/no-explicit-any": "error",
-    "typescript/only-throw-error": "error",
-    "typescript/no-deprecated": "error",
-    "typescript/ban-ts-comment": ["error", { "ts-expect-error": "allow-with-description", "ts-ignore": true }],
-    "import/no-cycle": "error"
+    "no-console": "off"
   },
-  "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.min.js"],
-  "options": { "typeAware": true, "reportUnusedDisableDirectives": "error" }
+  "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.min.js"]
 }
 ```
 
-- **`plugins` overwrites the default set rather than extending it**, and `eslint`, `typescript`, `oxc`, and `unicorn` are defaults. Omitting one of those from the array silently disables it.
-- **`style` and `pedantic` off, then cherry-picked back.** Style is the formatter's job, and a lint pass whose output is mostly taste teaches the agent to skim it. A rule earns a `rules` entry when the categories do not produce it, or produce it at the wrong severity, *and* it catches something that type-checks cleanly and is a characteristic agent failure. That is why the `no-unsafe-*` family, `no-misused-promises`, `switch-exhaustiveness-check`, `only-throw-error`, and `no-deprecated` are listed and `no-unnecessary-condition` is not — a rule whose findings are taste stays off. Anything already produced at the right severity is left out of the block, so every entry there is load-bearing.
-- **`ban-ts-comment` with `ts-ignore: true`** and **`no-deprecated`** enforce the two comment forms in [Comments to checked artifacts](#comments-to-checked-artifacts); **`reportUnusedDisableDirectives: "error"`** makes a suppression that stopped being needed fail the build, so suppressions self-delete.
-- **`correctness: error` versus `suspicious`/`perf: warn`** grades confidence, not consequence. Every run denies warnings, so both block; the severity tells the agent which findings are certainly wrong and which are heuristics worth reading before obeying.
-- **`ignorePatterns` and `typeAware` live in the config, not on script flags** — the CLI, CI, and the editor then apply the same set. `typeAware` on one script means a green local `lint` and a red CI.
-- **`import/no-cycle`** uses oxlint's project-wide module graph. Cycles make imported values `undefined` by evaluation order, which surfaces as a runtime bug with no compile-time signal.
+- **`$schema`** — the config itself is machine-verified: a typo'd key or a wrong value type is flagged by any schema-aware editor or validator instead of being silently ignored.
+- **`correctness: error` versus `suspicious`/`perf: warn`** grades confidence, not consequence. Every run denies warnings, so both block; the severity tells the agent which findings are certainly wrong and which are heuristics worth reading before obeying. `style` and `pedantic` stay off: style is the formatter's job, and a lint pass whose output is mostly taste teaches the agent to skim the channel.
+- **`no-console: "off"`** — agent debugging routinely inserts `console.log`, and flagging it slows the inner loop. Strip it at release time with a deliberate pass, not on every lint.
+- **`ignorePatterns` lives in the config, not on script flags** — the CLI, CI, and the editor then apply the same set.
 
-Type-aware rules run on `oxlint-tsgolint`, which discovers each file's `tsconfig.json` itself; do not pass `--tsconfig`, which type-aware linting ignores.
+This config is the untyped rule set. The type-aware pass — `oxlint --type-aware --type-check`, which needs `oxlint-tsgolint` — adds `typescript/no-floating-promises` and the `no-unsafe-*` family: an `any` crossing a boundary and a promise nobody awaited both type-check cleanly, and untyped lint misses them too, so run the pass as a deliberate gate alongside the checks that stay outside `check`. `oxlint-tsgolint` discovers each file's `tsconfig.json` itself; do not pass `--tsconfig`, which type-aware linting ignores.
 
 ## Prettier
 
@@ -392,34 +374,6 @@ package-lock.json
 
 `*.md` is there because Prettier reflows paragraphs, list spacing, and table widths, which breaks the same exact-string matching.
 
-## Comments to checked artifacts
-
-An inline or doc comment is a claim that nothing verifies: it survives every edit that falsifies it, so over an agent-driven project's life it degrades from documentation into misinformation. Replace the left column with the right.
-
-| Rotting comment | Checked replacement | Enforced by |
-| --- | --- | --- |
-| `// @ts-ignore` | `// @ts-expect-error <reason>` — errors once fixed, so it self-deletes | `ban-ts-comment` |
-| an unused suppression left behind | delete it | `reportUnusedDisableDirectives` |
-| `// this is a user id, not a name` | branded type: `string & { readonly brand: unique symbol }` | `tsc` |
-| `// one of: 'a' \| 'b' \| 'c'` | literal union, or `as const` object + `(typeof X)[keyof typeof X]` | `tsc` |
-| `// handle new variants here too` | `default: return assertNever(x)` | `tsc` + `switch-exhaustiveness-check` |
-| `// keep in sync with the API schema` | derive it: `z.infer<typeof S>`, `keyof`, `Extract`, mapped types | `tsc` |
-| `// keep in sync with the config` | `satisfies Config` on the literal | `tsc` |
-| `// this cast is safe because …` | a schema parse or an inferred predicate, plus tests — a hand-written `x is T` can still lie | `no-unsafe-type-assertion` + tests |
-| `// returns null if not found` | put it in the return type: `T \| null` | `tsc` |
-| `// don't forget to await this` | nothing — the rule already catches it | `no-floating-promises` |
-| `// this function's shape is …` | the signature is mandatory | `isolatedDeclarations` |
-| `// use the other one now` | `@deprecated` on the old symbol | `no-deprecated` |
-| `// subtle overload, don't break it` | type-level test in `*.test-d.ts`: `expectTypeOf` | test run |
-
-```ts
-export function assertNever(x: never): never {
-  throw new Error(`unreachable: ${JSON.stringify(x)}`);
-}
-```
-
-Every row converts a comment that states a *fact* — something a type can hold. A comment recording *why* a checked thing is shaped the way it is has no checked form and stays; `@deprecated` and `@ts-expect-error` stay too, because the rules above read them.
-
 ## Scripts
 
 Single project (§1–§3). Monorepos use the [§4](#4-monorepo-with-project-references) build script in place of `typecheck` and drop `check:decl`.
@@ -443,7 +397,7 @@ CI runs `npm run check` — the same command you run locally, so a green run on 
 
 `--format agent` is oxlint's one-line-per-diagnostic format. `--deny-warnings` on both lint scripts makes every finding something the agent has to resolve. `--fix` applies behavior-preserving fixes; `--fix-suggestions` and `--fix-dangerously` can change behavior, so run them deliberately and read the diff. `check:decl` exists wherever `tsconfig.declarations.json` does; pointing it at a §3 project is a TS5058 missing-file error. Drop `npm test` until a runner exists.
 
-Two checks stay outside `check` because they need artifacts it does not build: [running the output](#run-the-output), and — for libraries — `attw --pack .` with `publint --strict` in `prepack`. `type-coverage --at-least 99 --strict` is optional, and puts a number in CI in place of a belief about leftover `any`.
+Outside `check` stay the [type-aware lint pass](#oxlint-the-only-linter) and two checks that need artifacts it does not build: [running the output](#run-the-output), and — for libraries — `attw --pack .` with `publint --strict` in `prepack`. `type-coverage --at-least 99 --strict` is optional, and puts a number in CI in place of a belief about leftover `any`.
 
 ## Run the output
 
@@ -473,7 +427,7 @@ Map to the **output**, not the source: a package that runs from `dist/` and maps
 Do not overwrite. Surface the diff against the matching route, flag standing-policy violations, let the user decide. Order by blast radius, and put anything that makes errors readable before the steps that produce many — each step a separate reviewable change with `npm run typecheck` green before the next. Propose the commits rather than making them unasked.
 
 1. **Deprecated options** — remove every option removed in TypeScript 7; nothing else is evaluable until the config loads clean.
-2. **`strict: true`**, explicit `types` and `rootDir`, a pinned `target` / `lib`, and the `module` / `moduleResolution` row that matches who resolves the output.
+2. **`strict: true`**, explicit `types` and `rootDir`, an explicit `target` / `lib` (`esnext` unless a floor pins them), and the `module` / `moduleResolution` row that matches who resolves the output.
 3. **`noErrorTruncation` + `--pretty false`** — before the noisy steps, so their errors arrive readable.
 4. **Zero-behavior-change flags**, in one or more commits: `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noImplicitOverride`, `allowUnreachableCode: false`, `allowUnusedLabels: false`, `noUncheckedSideEffectImports`.
 5. **`noUncheckedIndexedAccess`** — the largest error count, and it adds branches.
@@ -481,7 +435,7 @@ Do not overwrite. Surface the diff against the matching route, flag standing-pol
 7. `verbatimModuleSyntax` + `isolatedModules` + `moduleDetection: force`.
 8. **`erasableSyntaxOnly`** — mostly `enum` migration, so runtime shape changes here.
 9. Split out the [§5 programs](#5-additional-programs), `tsconfig.test.json` included.
-10. oxlint: start from the config above with `typeAware` off, clear `correctness`, then turn `typeAware` on.
+10. oxlint: adopt the config above and clear `correctness`; bring the type-aware pass in once untyped lint is green.
 11. **`isolatedDeclarations`** last — the largest diff, but almost entirely additive annotations.
 
 ## When something "isn't working"
@@ -499,5 +453,5 @@ Confirm the setup is live rather than assuming it:
 
 - `const x: string = arr[0]` must error — `noUncheckedIndexedAccess`.
 - A long **inline anonymous** union must print every member instead of `... N more ...` — `noErrorTruncation`. A named alias prints as its own name and never truncates, so it produces a false pass.
-- A bare `somePromise()` statement must fail `lint` — the type-aware rules are running, not silently skipped.
+- A bare `somePromise()` statement must fail the type-aware pass (`oxlint --type-aware --type-check`) — the rules are running against a 7-clean config, not silently skipped.
 - On a monorepo, a deliberate type error in one leaf must make `typecheck` exit non-zero.
