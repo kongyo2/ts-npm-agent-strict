@@ -330,7 +330,6 @@ The linter's consumer is the agent: error-level findings are real bugs, style is
 ```
 
 - **`$schema`** — the config itself is machine-verified: a typo'd key or a wrong value type is flagged by any schema-aware editor or validator instead of being silently ignored.
-- **`plugins` overwrites the default set rather than extending it** — `typescript`, `import`, `promise`, `node` cover the TS/Node project surface.
 - **`correctness: error` versus `suspicious`/`perf: warn`** grades confidence, not consequence. Every run denies warnings, so both block; the severity tells the agent which findings are certainly wrong and which are heuristics worth reading before obeying. `style` and `pedantic` stay off: style is the formatter's job, and a lint pass whose output is mostly taste teaches the agent to skim the channel.
 - **`no-console: "off"`** — agent debugging routinely inserts `console.log`, and flagging it slows the inner loop. Strip it at release time with a deliberate pass, not on every lint.
 - **`ignorePatterns` lives in the config, not on script flags** — the CLI, CI, and the editor then apply the same set.
