@@ -12,7 +12,7 @@ Four premises drive every choice below.
 - **Every mistake a flag can catch, a flag should catch.** An agent emits plausible-wrong code faster than anyone reviews it. Static checks are the only reviewer that runs on every edit.
 - **The program must be legible one file at a time.** Inferred export signatures, ambient globals, and `tsc`-only path aliases are invisible to grep, therefore invisible to an agent that navigates by search. Force them written down.
 - **Checker output is a machine channel.** Truncation, ANSI escapes, and volume the agent learns to skim are all corruption in that channel.
-- **Prefer a checked element over a comment.** A type, a `satisfies`, an `assertNever`, or a `@ts-expect-error` carries the same claim and fails the build when it stops being true. See [Comments to checked artifacts](#comments-to-checked-artifacts).
+- **Prefer a checked element over a comment.** A type, a `satisfies`, an `assertNever`, or a `@ts-expect-error` carries the same claim and fails the build when it stops being true.
 
 Size and shape follow from those: files run as long as their subject, unions as wide as the domain, generics as deep as the type demands, lines to 120 columns. The enforcement is an absence — `max-lines`, `max-depth`, `max-params`, and the complexity rules live in the `style` and `pedantic` categories that `.oxlintrc.json` turns off.
 
@@ -374,33 +374,6 @@ package-lock.json
 ```
 
 `*.md` is there because Prettier reflows paragraphs, list spacing, and table widths, which breaks the same exact-string matching.
-
-## Comments to checked artifacts
-
-An inline or doc comment is a claim that nothing verifies: it survives every edit that falsifies it, so over an agent-driven project's life it degrades from documentation into misinformation. Replace the left column with the right.
-
-| Rotting comment | Checked replacement | Enforced by |
-| --- | --- | --- |
-| `// @ts-ignore` | `// @ts-expect-error <reason>` — errors once fixed, so it self-deletes | `tsc` (TS2578 once stale) |
-| `// this is a user id, not a name` | branded type: `string & { readonly brand: unique symbol }` | `tsc` |
-| `// one of: 'a' \| 'b' \| 'c'` | literal union, or `as const` object + `(typeof X)[keyof typeof X]` | `tsc` |
-| `// handle new variants here too` | `default: return assertNever(x)` | `tsc` |
-| `// keep in sync with the API schema` | derive it: `z.infer<typeof S>`, `keyof`, `Extract`, mapped types | `tsc` |
-| `// keep in sync with the config` | `satisfies Config` on the literal | `tsc` |
-| `// this cast is safe because …` | a schema parse or an inferred predicate, plus tests — a hand-written `x is T` can still lie | `no-unsafe-type-assertion` (type-aware pass) + tests |
-| `// returns null if not found` | put it in the return type: `T \| null` | `tsc` |
-| `// don't forget to await this` | nothing — the rule already catches it | `no-floating-promises` (type-aware pass) |
-| `// this function's shape is …` | the signature is mandatory | `isolatedDeclarations` |
-| `// use the other one now` | `@deprecated` on the old symbol | `no-deprecated` (type-aware pass) |
-| `// subtle overload, don't break it` | type-level test in `*.test-d.ts`: `expectTypeOf` | test run |
-
-```ts
-export function assertNever(x: never): never {
-  throw new Error(`unreachable: ${JSON.stringify(x)}`);
-}
-```
-
-Every row converts a comment that states a *fact* — something a type can hold. A comment recording *why* a checked thing is shaped the way it is has no checked form and stays; `@deprecated` and `@ts-expect-error` stay too, because the checks above read them.
 
 ## Scripts
 
